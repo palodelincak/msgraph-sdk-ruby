@@ -10,11 +10,13 @@ class MicrosoftGraph
       @parent          = options[:parent]
       @order_by        = options[:order_by]
       @filter          = options[:filter]
+      @search          = options[:search]
       @dirty           = false
       @loaded          = false
       @internal_values = []
 
       raise MicrosoftGraph::TypeError.new("A collection cannot be both ordered and filtered.") if @order_by && @filter
+      raise MicrosoftGraph::TypeError.new("A collection cannot be both searched and filtered.") if @search && @filter
       @order_by && @order_by.each do |field|
         field_name, direction = field.to_s.split(' ')
         field_names = field_name.split("/")
@@ -65,6 +67,9 @@ class MicrosoftGraph
           URI.escape OData.convert_to_camel_case(field)
         end
         "#{path}?$orderby=#{order_by_names.join(',')}"
+      elsif @search
+        escaped_search = URI.escape(@search.to_s)
+        "#{path}?$search=#{escaped_search}"
       elsif @filter
         escaped_filters = URI.escape(stringify_filters(@filter))
         "#{path}?$filter=#{escaped_filters}"
@@ -104,6 +109,17 @@ class MicrosoftGraph
         parent: @parent,
         order_by: @order_by,
         filter: merge_with_existing_filter(new_filters)
+      )
+    end
+
+    def search(query)
+      self.class.new(
+          type: @type,
+          graph: @graph,
+          resource_name: @resource_name,
+          parent: @parent,
+          order_by: @order_by,
+          search: query
       )
     end
 
@@ -218,7 +234,11 @@ class MicrosoftGraph
           end
         @internal_values.push klass.new(attributes: entity_hash, parent: self, persisted: true)
       end
-      @loaded = @next_link.nil?
+      if @search
+        @loaded = true
+      else
+        @loaded = @next_link.nil?
+      end
     end
 
     def default_member_class

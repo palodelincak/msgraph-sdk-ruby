@@ -11,6 +11,7 @@ class MicrosoftGraph
       @order_by        = options[:order_by]
       @filter          = options[:filter]
       @search          = options[:search]
+      @select          = options[:select]
       @dirty           = false
       @loaded          = false
       @internal_values = []
@@ -66,16 +67,25 @@ class MicrosoftGraph
         order_by_names = @order_by.map do |field|
           URI.escape OData.convert_to_camel_case(field)
         end
-        "#{path}?$orderby=#{order_by_names.join(',')}"
+        p = "#{path}?$orderby=#{order_by_names.join(',')}"
       elsif @search
         escaped_search = URI.escape(@search.to_s)
-        "#{path}?$search=#{escaped_search}"
+        p = "#{path}?$search=#{escaped_search}"
       elsif @filter
         escaped_filters = URI.escape(stringify_filters(@filter))
-        "#{path}?$filter=#{escaped_filters}"
+        p = "#{path}?$filter=#{escaped_filters}"
       else
-        path
+        p = path
       end
+      if @select
+        if @search || @filter
+          p = "#{p}&"
+        else
+          p = "#{p}?"
+        end
+        p = "#{p}$select=#{stringify_select(@select)}"
+      end
+      p
     end
 
     def order_by(*fields)
@@ -108,6 +118,7 @@ class MicrosoftGraph
         resource_name: @resource_name,
         parent: @parent,
         order_by: @order_by,
+        select: @select,
         filter: merge_with_existing_filter(new_filters)
       )
     end
@@ -119,9 +130,24 @@ class MicrosoftGraph
           resource_name: @resource_name,
           parent: @parent,
           order_by: @order_by,
+          select: @select,
           search: query
       )
     end
+
+    def select_fields(fields)
+      self.class.new(
+          type: @type,
+          graph: @graph,
+          resource_name: @resource_name,
+          parent: @parent,
+          order_by: @order_by,
+          search: @search,
+          filter: @filter,
+          select: fields
+      )
+    end
+
 
     def merge_with_existing_filter(new_filters)
       existing_filter = @filter || {}
@@ -130,6 +156,16 @@ class MicrosoftGraph
       else
         [stringify_filters(new_filters), stringify_filters(@filter)].compact.join(" and ")
       end
+    end
+
+    def stringify_select(attributes)
+      if attributes.is_a?(Array)
+        select_string = attributes
+      else
+        select_string = attributes.split(',')
+      end
+
+      select_string.compact.flatten.map{|s| OData.convert_to_camel_case(s)}.join(',')
     end
 
     def stringify_filters(filters)

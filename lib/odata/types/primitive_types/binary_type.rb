@@ -4,9 +4,9 @@ module OData
       String === value
     end
 
-    def coerce(value)
-      raise RuntimeError
-    end
+    # def coerce(value)
+    #   raise RuntimeError
+    # end
 
     def name
       "Edm.Binary"

@@ -171,8 +171,12 @@ class MicrosoftGraph
     def stringify_filters(filters)
       if filters.respond_to?(:keys)
         filter_strings = filters.map do |k,v|
-          v = v.is_a?(String) ? "'#{v}'" : v
-          "#{OData.convert_to_camel_case(k)} eq #{v}"
+          if %w(eq ge le).include?(v[0..1])
+            "#{OData.convert_to_camel_case(k)} #{v}"
+          else
+            v = v.is_a?(String) ? "'#{v}'" : v
+            "#{OData.convert_to_camel_case(k)} eq #{v}"
+          end
         end
         filter_strings.sort.join(' and ')
       else

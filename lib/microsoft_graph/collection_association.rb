@@ -12,12 +12,14 @@ class MicrosoftGraph
       @filter          = options[:filter]
       @search          = options[:search]
       @select          = options[:select]
+      @top             = options[:top]
+      @skip            = options[:skip]
       @dirty           = false
       @loaded          = false
       @internal_values = []
 
-      # raise MicrosoftGraph::TypeError.new("A collection cannot be both ordered and filtered.") if @order_by && @filter
-      # raise MicrosoftGraph::TypeError.new("A collection cannot be both searched and filtered.") if @search && @filter
+      raise MicrosoftGraph::TypeError.new("A collection cannot be both ordered and filtered.") if @order_by && @filter
+      raise MicrosoftGraph::TypeError.new("A collection cannot be both searched and filtered.") if @search && @filter
       @order_by && @order_by.each do |field|
         field_name, direction = field.to_s.split(' ')
         field_names = field_name.split("/")
@@ -78,12 +80,28 @@ class MicrosoftGraph
         p = path
       end
       if @select
-        if @search || @filter
+        if p.include?('?')
           p = "#{p}&"
         else
           p = "#{p}?"
         end
         p = "#{p}$select=#{stringify_select(@select)}"
+      end
+      if @top
+        if p.include?('?')
+          p = "#{p}&"
+        else
+          p = "#{p}?"
+        end
+        p = "#{p}$top=#{@top.to_i}"
+      end
+      if @skip
+        if p.include?('?')
+          p = "#{p}&"
+        else
+          p = "#{p}?"
+        end
+        p = "#{p}$skip=#{@skip.to_i}"
       end
       p
     end
@@ -95,6 +113,8 @@ class MicrosoftGraph
         resource_name: @resource_name,
         parent: @parent,
         order_by: fields,
+        top: @top,
+        skip: @skip,
         filter: @filter
       )
     end
@@ -119,7 +139,9 @@ class MicrosoftGraph
         parent: @parent,
         order_by: @order_by,
         select: @select,
-        filter: merge_with_existing_filter(new_filters)
+        filter: merge_with_existing_filter(new_filters),
+        top: @top,
+        skip: @skip
       )
     end
 
@@ -131,6 +153,8 @@ class MicrosoftGraph
           parent: @parent,
           order_by: @order_by,
           select: @select,
+          top: @top,
+          skip: @skip,
           search: query
       )
     end
@@ -144,7 +168,39 @@ class MicrosoftGraph
           order_by: @order_by,
           search: @search,
           filter: @filter,
+          top: @top,
+          skip: @skip,
           select: fields
+      )
+    end
+
+    def top(top)
+      self.class.new(
+          type: @type,
+          graph: @graph,
+          resource_name: @resource_name,
+          parent: @parent,
+          order_by: @order_by,
+          search: @search,
+          filter: @filter,
+          top: top,
+          skip: @skip,
+          select: @select
+      )
+    end
+
+    def skip(skip)
+      self.class.new(
+          type: @type,
+          graph: @graph,
+          resource_name: @resource_name,
+          parent: @parent,
+          order_by: @order_by,
+          search: @search,
+          filter: @filter,
+          skip: skip,
+          top: @top,
+          select: @select
       )
     end
 
@@ -242,7 +298,7 @@ class MicrosoftGraph
     private
 
     def last?
-      @loaded || @internal_values.size >= 300
+      @loaded
     end
 
     def fetch_next_page
@@ -277,7 +333,11 @@ class MicrosoftGraph
       if @search
         @loaded = true
       else
-        @loaded = @next_link.nil?
+        if @top.to_i > 0 && @top.to_i <= @internal_values.count
+          @loaded = true
+        else
+          @loaded = @next_link.nil?
+        end
       end
     end
 

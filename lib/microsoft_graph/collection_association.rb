@@ -72,7 +72,7 @@ class MicrosoftGraph
         p = "#{path}?$orderby=#{order_by_names.join(',')}"
       elsif @search
         escaped_search = URI.escape(@search.to_s)
-        p = "#{path}?$search=#{escaped_search}"
+        p = path + '?$search="' + escaped_search + '"'
       elsif @filter
         escaped_filters = URI.escape(stringify_filters(@filter))
         p = "#{path}?$filter=#{escaped_filters}"
